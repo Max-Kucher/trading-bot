@@ -1,4 +1,5 @@
 
-export const config = {
-    binanceWebsocketUrl: "wss://stream.binance.com:443",
+export default {
+    binanceWebsocketUrl: "wss://stream.binance.com:9443/ws",
+    tradingPairs: ["BTCUSDT"], // , "ethusdt"
 };
