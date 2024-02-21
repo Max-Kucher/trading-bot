@@ -15,8 +15,8 @@
   "author": "MaxiCart",
   "license": "MIT",
   "dependencies": {
-    "binance-api-node": "^0.12.7",
-    "dotenv": "^16.4.4",
-    "ws": "^8.16.0"
+    "bitget-api": "^2.0.4",
+    "date-fns": "^3.3.1",
+    "dotenv": "^16.4.4"
   }
 }

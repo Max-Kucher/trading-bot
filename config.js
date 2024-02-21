@@ -1,5 +1,27 @@
 
 export default {
-    binanceWebsocketUrl: "wss://stream.binance.com:9443/ws",
-    tradingPairs: ["BTCUSDT"], // , "ethusdt"
+    tradingPairs: ["SBTCSUSDT"],
+    // tradingPairs: ["BTCUSDT"],
+    tradingAmounts: {
+        SBTCSUSDT: 0.03,
+        // BTCUSDT: 0.03,
+    },
+    profit: {  // TP
+        SBTCSUSDT: 55,
+        // BTCUSDT: 55,
+    },
+    loss: {  // SL
+        SBTCSUSDT: 50,
+        // BTCUSDT: 50,
+    },
+    step: {  // Step size
+        SBTCSUSDT: 20,
+        // BTCUSDT: 20,
+    },
+    maxTrades: 5,
+    files: {
+        logsFile: "./logs/logs.txt",
+        assetsFile: "./logs/assets.txt",
+    },
+    accountSnapshotsInterval: 1, // In minutes
 };
