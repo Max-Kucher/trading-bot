@@ -75,16 +75,3 @@ export async function saveAccountSnapshot(restClient, instType)
         appendStringToFile(config.files.assetsFile, str);
     });
 }
-
-/**
- *
- * @param {number} currentPrice
- * @param {number} step
- * @returns {{levelStart: number, levelEnd: number}}
- */
-export function getPriceLevel(currentPrice, step)
-{
-    const levelStart = currentPrice - (currentPrice % step);
-    const levelEnd = levelStart + step;
-    return { levelStart, levelEnd };
-}
