@@ -34,12 +34,13 @@ setInterval(async () => {
 const wsClient = new WebsocketClientV2(clientOptions);
 
 import { OrderManager } from "./OrderManager.js";
+const productType = process.env.BITGET_NET.toLowerCase() === 'testnet' ? 'SUSDT-FUTURES' : 'USDT-FUTURES';
 
-const orderManager = new OrderManager(config);
+const orderManager = new OrderManager(restClient, wsClient, config, process.env, productType);
 
 wsClient.on('update', (data) => {
-    data.data.forEach(item => {
-        orderManager.handlePriceUpdate(item.instId, item.lastPr)
+    data.data.forEach(async (item) => {
+        await orderManager.handlePriceUpdate(item.instId, parseFloat(item.lastPr));
     });
 });
 

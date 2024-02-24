@@ -22,7 +22,7 @@ function formatDate(date, formatStr) {
  */
 export function appendStringToFile(filePath, data)
 {
-    appendFile(filePath, data, 'utf8', (err) => {
+    appendFile(filePath, data + os.EOL, 'utf8', (err) => {
         if (err) {
             console.error('Err occurred', err);
         } else {
