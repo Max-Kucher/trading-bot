@@ -1,4 +1,4 @@
-import { appendStringToFile, clearLogFiles } from "./helpers.js";
+import { appendStringToFile, clearLogFiles, formatDate } from "./helpers.js";
 import pkg from 'bitget-api';
 import os from "os";
 const { WebsocketClientV2, RestClientV2, APIResponse } = pkg;
@@ -21,24 +21,22 @@ export class OrderManager {
         this.config = config;
         // this.env = env;
         this.productType = productType;
+        this.marginCoin = productType.replace('-FUTURES', '');
 
         this.activeTrades = new Map(); // Хранит информацию о активных торговых операциях и лимитках для каждого символа.
-        // this.tradesList = {
-        //     buy: [],
-        //     sell: [],
-        //     activeBuy: [],
-        //     activeSell: [],
-        // };
+        this.activeOrders = new Map();
 
         this.canTrade = false;
         this.prevPrice = 0;
 
-        const o = this;
-        this.logActiveActiveTrades = (obj) => {
-            const log = JSON.stringify(obj, (key, value) => (value instanceof Map ? [...value] : value), 2);
-            appendStringToFile(config.files.logsFile, log);
-            console.log(log);
-        };
+        this.logsFileName = `${config.files.logsFile}-${formatDate(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.txt`;
+
+        // const o = this;
+        // this.logActiveActiveTrades = (obj) => {
+        //     const log = JSON.stringify(obj, (key, value) => (value instanceof Map ? [...value] : value), 2);
+        //     appendStringToFile(o.logsFileName, log);
+        //     console.log(log);
+        // };
     }
 
     // Метод для начала торговли или обработки изменения цены.
@@ -51,7 +49,7 @@ export class OrderManager {
         let tradeInfo = this.activeTrades.get(symbol);
 
         if (tradeInfo && this.canTrade) {
-            this.updateTrade(symbol, currentPrice, tradeInfo);
+            // this.updateTrade(symbol, currentPrice, tradeInfo);
         } else {
             const o = this;
             await this._fillTradesFromPendingOrders().finally(() => {
@@ -69,26 +67,26 @@ export class OrderManager {
         const highRange = { start: currentPrice + step / 2, end: currentPrice + 3 * step / 2 };
 
         // Создаем ордера на покупку и продажу для каждого диапазона
-        const buyLowOrderId = this._postOrder((lowRange.start + lowRange.end) / 2, 'buy');
-        const sellLowOrderId = this._postOrder((lowRange.start + lowRange.end) / 2, 'sell');
+        // const buyLowOrderId = this._postOrder(symbol, (lowRange.start + lowRange.end) / 2, 'Buy');
+        // const sellLowOrderId = this._postOrder(symbol, (lowRange.start + lowRange.end) / 2, 'Sell');
 
-        const buyCurrentOrderId = this._postOrder(currentPrice, 'buy');
-        const sellCurrentOrderId = this._postOrder(currentPrice, 'sell');
+        const buyCurrentOrderId = this._postOrder(symbol, currentPrice, 'Buy');
+        // const sellCurrentOrderId = this._postOrder(symbol, currentPrice, 'Sell');
 
-        const buyHighOrderId = this._postOrder((highRange.start + highRange.end) / 2, 'buy');
-        const sellHighOrderId = this._postOrder((highRange.start + highRange.end) / 2, 'sell');
+        // const buyHighOrderId = this._postOrder(symbol, (highRange.start + highRange.end) / 2, 'Buy');
+        // const sellHighOrderId = this._postOrder(symbol, (highRange.start + highRange.end) / 2, 'Sell');
 
         // Структурируем tradeInfo с учетом диапазонов и разделяем buy и sell levels
         const tradeInfo = {
             buyLevels: [
-                { range: lowRange, orderIds: [buyLowOrderId] },
+                // { range: lowRange, orderIds: [buyLowOrderId] },
                 { range: currentRange, orderIds: [buyCurrentOrderId] },
-                { range: highRange, orderIds: [buyHighOrderId] }
+                // { range: highRange, orderIds: [buyHighOrderId] }
             ],
             sellLevels: [
-                { range: lowRange, orderIds: [sellLowOrderId] },
-                { range: currentRange, orderIds: [sellCurrentOrderId] },
-                { range: highRange, orderIds: [sellHighOrderId] }
+                // { range: lowRange, orderIds: [sellLowOrderId] },
+                // { range: currentRange, orderIds: [sellCurrentOrderId] },
+                // { range: highRange, orderIds: [sellHighOrderId] }
             ]
         };
 
@@ -104,7 +102,7 @@ export class OrderManager {
 
         const _str = `Current ${symbol} price is ${currentPrice}`;
         console.log(_str);
-        appendStringToFile(this.config.files.logsFile, _str);
+        appendStringToFile(this.logsFileName, _str);
 
         let str = '';
 
@@ -116,8 +114,8 @@ export class OrderManager {
 
             for (let i = 0; i < levelsToAdd; i++) {
                 // Добавляем новый уровень сверху
-                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo);
-                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'Buy', tradeInfo);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'Sell', tradeInfo);
 
                 str += os.EOL + `Новый уровень сверху: ${newLevelStart} - ${newLevelEnd}`;
 
@@ -126,8 +124,8 @@ export class OrderManager {
                 newLevelEnd = newLevelStart + step;
 
                 // Отменяем ордера на самом нижнем уровне, так как добавлены новые уровни
-                this.cancelOrdersAtLevel(tradeInfo.buyLevels[0], 'buy', tradeInfo);
-                this.cancelOrdersAtLevel(tradeInfo.sellLevels[0], 'sell', tradeInfo);
+                this.cancelOrdersAtLevel(tradeInfo.buyLevels[0], 'Buy', tradeInfo);
+                this.cancelOrdersAtLevel(tradeInfo.sellLevels[0], 'Sell', tradeInfo);
 
                 // Удаляем самый нижний buy и sell уровни
                 tradeInfo.buyLevels.shift();
@@ -140,8 +138,8 @@ export class OrderManager {
 
             for (let i = 0; i < levelsToAdd; i++) {
                 // Добавляем новый уровень снизу
-                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo, true);
-                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo, true);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'Buy', tradeInfo, true);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'Sell', tradeInfo, true);
 
                 str += os.EOL + `Новый уровень снизу: ${newLevelStart} - ${newLevelEnd}`;
 
@@ -150,8 +148,8 @@ export class OrderManager {
                 newLevelStart = newLevelEnd - step;
 
                 // Отменяем ордера на самом верхнем уровне, так как добавлены новые уровни снизу
-                this.cancelOrdersAtLevel(tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1], 'buy');
-                this.cancelOrdersAtLevel(tradeInfo.sellLevels[tradeInfo.sellLevels.length - 1], 'sell');
+                this.cancelOrdersAtLevel(tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1], 'Buy');
+                this.cancelOrdersAtLevel(tradeInfo.sellLevels[tradeInfo.sellLevels.length - 1], 'Sell');
 
                 // Удаляем самый верхний buy и sell уровни
                 tradeInfo.buyLevels.pop();
@@ -160,31 +158,27 @@ export class OrderManager {
         }
 
         if (str.length > 0) {
-            appendStringToFile(this.config.files.logsFile, str);
+            appendStringToFile(this.logsFileName, str);
             console.log(str);
         }
     }
 
     // Функция для добавления нового уровня и ордеров
     addNewLevel(symbol, start, end, direction, tradeInfo, isPriceGoingDown) {
-        const price = direction === 'buy' ? start + this.config.step[symbol] : end - this.config.step[symbol];
-        const orderId = this._postOrder(price, direction);
+        const price = direction === 'Buy' ? start + (this.config.step[symbol] / 2) : end - (this.config.step[symbol] / 2);
+        const orderId = this._postOrder(symbol, price, direction);
         const newLevel = { range: { start, end }, orderIds: [orderId] };
 
-        if (direction === 'buy') {
+        if (direction === 'Buy') {
             if (isPriceGoingDown) {
-                // Если цена идет вниз, добавляем новый уровень в начало массива buyLevels
                 tradeInfo.buyLevels.unshift(newLevel);
             } else {
-                // Если цена идет вверх, добавляем новый уровень в конец массива buyLevels
                 tradeInfo.buyLevels.push(newLevel);
             }
-        } else { // direction === 'sell'
+        } else { // direction === 'Sell'
             if (isPriceGoingDown) {
-                // Если цена идет вниз, добавляем новый уровень в начало массива sellLevels
                 tradeInfo.sellLevels.unshift(newLevel);
             } else {
-                // Если цена идет вверх, добавляем новый уровень в конец массива sellLevels
                 tradeInfo.sellLevels.push(newLevel);
             }
         }
@@ -192,29 +186,64 @@ export class OrderManager {
 
 
     // Функция для отмены ордеров на указанном уровне
-    cancelOrdersAtLevel(level, direction) {
+    cancelOrdersAtLevel(level) {
         const o = this;
         level.orderIds.forEach(orderId => {
             // Предполагается, что функция cancelOrder возвращает true при успешной отмене
             if (o.cancelOrder(orderId)) {
                 const str = `Order ${orderId} cancelled successfully.`;
-                appendStringToFile(this.config.files.logsFile, str);
+                appendStringToFile(this.logsFileName, str);
                 console.log(str);
-
-                // Удаление идентификатора ордера из списка, если требуется
             }
         });
-        level.orderIds = [];
     }
 
+    /**
+     *
+     * @param {string }symbol
+     * @param {number} price
+     * @param {string} direction
+     * @returns {string}
+     * @private
+     */
+    async _postOrder(symbol, price, direction) {
+        let presetStopSurplusPrice,
+            presetStopLossPrice;
 
-    _postOrder(price, direction) {
-        // Симулируем размещение ордера и возвращаем рандомный идентификатор ордера.
-        const orderId = `${direction.substring(0, 1).toUpperCase()}-${Math.random().toString(36).substring(2, 13)}`;
+        if (direction === 'Buy') {
+            presetStopSurplusPrice = price + this.config.profit[symbol];
+            presetStopLossPrice = price - this.config.loss[symbol];
+        } else {
+            presetStopSurplusPrice = price - this.config.profit[symbol];
+            presetStopLossPrice = price + this.config.loss[symbol];
+        }
 
-        const str = `Order posted: ${orderId} at price ${price} for ${direction}`;
+        const clientOid = `${symbol}-${direction.substring(0, 1).toUpperCase()}-${Math.random().toString(36).substring(2, 9)}`;
+        let orderData = await this.restClient.futuresSubmitOrder({
+            productType: this.productType,
+            marginMode: 'isolated',
+            symbol,
+            marginCoin: this.marginCoin,
+            size: this.config.tradingAmounts[symbol],
+            side: direction,
+            tradeSide: 'Open',
+            price,
+            orderType: 'limit',
+            force: 'GTC',
+            presetStopSurplusPrice,
+            presetStopLossPrice,
+            clientOid,
+        });
+
+        if (orderData.msg !== 'success') {
+            throw `Error on creating order (#${orderData.code}): ${orderData.msg}`;
+        }
+
+        const orderId = orderData.data.orderId;
+        const str = `Order posted: ${orderId} (clientOid: ${clientOid}) at price ${price} for ${direction}`;
+
         console.log(str);
-        appendStringToFile(this.config.files.logsFile, str);
+        appendStringToFile(this.logsFileName, str);
 
         return orderId;
     }
@@ -246,7 +275,7 @@ export class OrderManager {
                 symbol,
                 productType: this.productType,
             }).then(data => {
-                // console.log(data);
+                // console.log(data.data.entrustedList);
                 // Тут при инициализации торговли мы запонляем карту откртых ордеров.
             });
         });

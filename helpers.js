@@ -11,7 +11,7 @@ import { format } from 'date-fns';
  * @param {string} formatStr Format string, similar to the PHP date() function.
  * @returns {string} Formatted date string.
  */
-function formatDate(date, formatStr) {
+export function formatDate(date, formatStr) {
     return format(date, formatStr);
 }
 

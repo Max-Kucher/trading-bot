@@ -35,6 +35,7 @@ const wsClient = new WebsocketClientV2(clientOptions);
 
 import { OrderManager } from "./OrderManager.js";
 const productType = process.env.BITGET_NET.toLowerCase() === 'testnet' ? 'SUSDT-FUTURES' : 'USDT-FUTURES';
+const orderManager = new OrderManager(restClient, wsClient, config, process.env, productType);
 
 // restClient.futuresSubmitOrder({
 //     productType,
@@ -60,8 +61,16 @@ const productType = process.env.BITGET_NET.toLowerCase() === 'testnet' ? 'SUSDT-
 // }).catch(err => {
 //     console.log(err);
 // });
-//
-// orderManager._fillTradesFromPendingOrders();
+
+// restClient.futuresCancelOrder({
+//     productType,
+//     symbol: 'SBTCSUSDT',
+//     orderId: '1145714211255119873'
+// }).then(data => {
+//     console.log(data);
+// }).catch(err => {
+//     console.log(err);
+// });
 
 // restClient.getFuturesPositions({
 //     productType,
@@ -71,14 +80,16 @@ const productType = process.env.BITGET_NET.toLowerCase() === 'testnet' ? 'SUSDT-
 // }).catch(err => {
 //     console.log(err);
 // });
-
-
-const orderManager = new OrderManager(restClient, wsClient, config, process.env, productType);
+// orderManager._fillTradesFromPendingOrders();
 
 wsClient.on('update', (data) => {
-    data.data.forEach(async (item) => {
-        await orderManager.handlePriceUpdate(item.instId, parseFloat(item.lastPr));
-    });
+    if (data.arg.channel === 'ticker') {
+        data.data.forEach(async (item) => {
+            await orderManager.handlePriceUpdate(item.instId, parseFloat(item.lastPr));
+        });
+    } else if (data.arg.channel === 'orders') {
+        console.log(data);
+    }
 });
 
 wsClient.on('exception', (data) => {
@@ -86,3 +97,4 @@ wsClient.on('exception', (data) => {
 });
 
 config.tradingPairs.forEach(symbol => wsClient.subscribeTopic(instType, 'ticker', symbol));
+config.tradingPairs.forEach(symbol => wsClient.subscribeTopic(instType, 'orders', symbol));

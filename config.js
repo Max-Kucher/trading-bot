@@ -3,7 +3,7 @@ export default {
     tradingPairs: ["SBTCSUSDT"],
     // tradingPairs: ["BTCUSDT"],
     tradingAmounts: {
-        SBTCSUSDT: 0.03,
+        SBTCSUSDT: 0.003,
         BTCUSDT: 0.03,
     },
     profit: {  // TP
@@ -18,10 +18,10 @@ export default {
         SBTCSUSDT: 20,
         BTCUSDT: 10,
     },
-    maxTrades: 5,
+    maxTrades: 2,
     files: {
-        logsFile: "./logs/logs.txt",
-        assetsFile: "./logs/assets.txt",
+        logsFile: "./logs/logs",
+        assetsFile: "./logs/assets",
     },
     accountSnapshotsInterval: 1, // In minutes
 };
