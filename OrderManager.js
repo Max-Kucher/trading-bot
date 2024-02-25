@@ -1,5 +1,6 @@
 import { appendStringToFile, clearLogFiles } from "./helpers.js";
 import pkg from 'bitget-api';
+import os from "os";
 const { WebsocketClientV2, RestClientV2, APIResponse } = pkg;
 
 export class OrderManager {
@@ -22,14 +23,21 @@ export class OrderManager {
         this.productType = productType;
 
         this.activeTrades = new Map(); // Хранит информацию о активных торговых операциях и лимитках для каждого символа.
+        // this.tradesList = {
+        //     buy: [],
+        //     sell: [],
+        //     activeBuy: [],
+        //     activeSell: [],
+        // };
 
         this.canTrade = false;
         this.prevPrice = 0;
 
         const o = this;
-        this.logActiveActiveTrades = () => {
-            const log = JSON.stringify(o.activeTrades, (key, value) => (value instanceof Map ? [...value] : value), 2);
+        this.logActiveActiveTrades = (obj) => {
+            const log = JSON.stringify(obj, (key, value) => (value instanceof Map ? [...value] : value), 2);
             appendStringToFile(config.files.logsFile, log);
+            console.log(log);
         };
     }
 
@@ -91,66 +99,97 @@ export class OrderManager {
     updateTrade(symbol, currentPrice, tradeInfo) {
         const step = this.config.step[symbol];
 
-        let str = null;
+        const topPriceCheck = tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1].range.end - step / 2;
+        const bottomPriceCheck = tradeInfo.sellLevels[0].range.start + step / 2;
+
+        const _str = `Current ${symbol} price is ${currentPrice}`;
+        console.log(_str);
+        appendStringToFile(this.config.files.logsFile, _str);
+
+        let str = '';
 
         // Определяем, нужно ли добавить новый уровень и отменить ордера на самом дальнем уровне
-        if (currentPrice > tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1].range.end + step) {
-            // Цена поднялась выше верхнего уровня, добавляем новый уровень сверху
-            const newLevelStart = tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1].range.end + step;
-            const newLevelEnd = newLevelStart + 2 * step;
-            this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo);
-            this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo);
+        if (currentPrice > topPriceCheck) {
+            let newLevelStart = tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1].range.end;
+            let newLevelEnd = newLevelStart + step;
+            let levelsToAdd = Math.floor((currentPrice - newLevelEnd) / step) + 1;
 
-            // Отменяем ордера на самом нижнем уровне
-            this.cancelOrdersAtLevel(tradeInfo.buyLevels[0], 'buy', tradeInfo);
-            this.cancelOrdersAtLevel(tradeInfo.sellLevels[0], 'sell', tradeInfo);
+            for (let i = 0; i < levelsToAdd; i++) {
+                // Добавляем новый уровень сверху
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo);
 
-            // Обновляем информацию о уровнях в tradeInfo
-            tradeInfo.buyLevels.shift(); // Удаляем самый нижний buy уровень
-            const bottomLevel = tradeInfo.sellLevels.shift(); // Удаляем самый нижний sell уровень
+                str += os.EOL + `Новый уровень сверху: ${newLevelStart} - ${newLevelEnd}`;
 
-            str = `Удалили нижний уровень: ${bottomLevel.range.start} - ${bottomLevel.range.end}`;
+                // Подготавливаем параметры для следующего уровня
+                newLevelStart = newLevelEnd;
+                newLevelEnd = newLevelStart + step;
 
-        } else if (currentPrice < tradeInfo.sellLevels[0].range.start - step) {
-            // Цена опустилась ниже нижнего уровня, добавляем новый уровень снизу
-            const newLevelEnd = tradeInfo.sellLevels[0].range.start - step;
-            const newLevelStart = newLevelEnd - 2 * step;
-            this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo);
-            this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo);
+                // Отменяем ордера на самом нижнем уровне, так как добавлены новые уровни
+                this.cancelOrdersAtLevel(tradeInfo.buyLevels[0], 'buy', tradeInfo);
+                this.cancelOrdersAtLevel(tradeInfo.sellLevels[0], 'sell', tradeInfo);
 
-            // Отменяем ордера на самом верхнем уровне
-            this.cancelOrdersAtLevel(tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1], 'buy');
-            this.cancelOrdersAtLevel(tradeInfo.sellLevels[tradeInfo.sellLevels.length - 1], 'sell');
+                // Удаляем самый нижний buy и sell уровни
+                tradeInfo.buyLevels.shift();
+                tradeInfo.sellLevels.shift();
+            }
+        } else if (currentPrice < bottomPriceCheck) {
+            let newLevelEnd = tradeInfo.sellLevels[0].range.start;
+            let newLevelStart = newLevelEnd - step;
+            let levelsToAdd = Math.floor((newLevelStart - currentPrice) / step) + 1;
 
-            // Обновляем информацию о уровнях в tradeInfo
-            tradeInfo.buyLevels.pop(); // Удаляем самый верхний buy уровень
-            const topLevel = tradeInfo.sellLevels.pop(); // Удаляем самый верхний sell уровень
+            for (let i = 0; i < levelsToAdd; i++) {
+                // Добавляем новый уровень снизу
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'buy', tradeInfo, true);
+                this.addNewLevel(symbol, newLevelStart, newLevelEnd, 'sell', tradeInfo, true);
 
-            str = `Удалили верхний уровень: ${topLevel.range.start} - ${topLevel.range.end}`;
+                str += os.EOL + `Новый уровень снизу: ${newLevelStart} - ${newLevelEnd}`;
 
-        } else {
-            console.log(`Current ${symbol} price is ${currentPrice}`);
+                // Подготавливаем параметры для следующего уровня
+                newLevelEnd = newLevelStart;
+                newLevelStart = newLevelEnd - step;
+
+                // Отменяем ордера на самом верхнем уровне, так как добавлены новые уровни снизу
+                this.cancelOrdersAtLevel(tradeInfo.buyLevels[tradeInfo.buyLevels.length - 1], 'buy');
+                this.cancelOrdersAtLevel(tradeInfo.sellLevels[tradeInfo.sellLevels.length - 1], 'sell');
+
+                // Удаляем самый верхний buy и sell уровни
+                tradeInfo.buyLevels.pop();
+                tradeInfo.sellLevels.pop();
+            }
         }
 
-        if (str !== null) {
+        if (str.length > 0) {
             appendStringToFile(this.config.files.logsFile, str);
             console.log(str);
         }
     }
 
     // Функция для добавления нового уровня и ордеров
-    addNewLevel(symbol, start, end, direction, tradeInfo) {
-        const step = this.config.step[symbol];
-
-        const price = direction === 'buy' ? start + step : end - step;
+    addNewLevel(symbol, start, end, direction, tradeInfo, isPriceGoingDown) {
+        const price = direction === 'buy' ? start + this.config.step[symbol] : end - this.config.step[symbol];
         const orderId = this._postOrder(price, direction);
         const newLevel = { range: { start, end }, orderIds: [orderId] };
+
         if (direction === 'buy') {
-            tradeInfo.buyLevels.push(newLevel);
-        } else {
-            tradeInfo.sellLevels.push(newLevel);
+            if (isPriceGoingDown) {
+                // Если цена идет вниз, добавляем новый уровень в начало массива buyLevels
+                tradeInfo.buyLevels.unshift(newLevel);
+            } else {
+                // Если цена идет вверх, добавляем новый уровень в конец массива buyLevels
+                tradeInfo.buyLevels.push(newLevel);
+            }
+        } else { // direction === 'sell'
+            if (isPriceGoingDown) {
+                // Если цена идет вниз, добавляем новый уровень в начало массива sellLevels
+                tradeInfo.sellLevels.unshift(newLevel);
+            } else {
+                // Если цена идет вверх, добавляем новый уровень в конец массива sellLevels
+                tradeInfo.sellLevels.push(newLevel);
+            }
         }
     }
+
 
     // Функция для отмены ордеров на указанном уровне
     cancelOrdersAtLevel(level, direction) {
@@ -171,7 +210,7 @@ export class OrderManager {
 
     _postOrder(price, direction) {
         // Симулируем размещение ордера и возвращаем рандомный идентификатор ордера.
-        const orderId = `${direction.substring(0, 1).toUpperCase()}-${Math.random().toString(36).substring(2, 9)}`;
+        const orderId = `${direction.substring(0, 1).toUpperCase()}-${Math.random().toString(36).substring(2, 13)}`;
 
         const str = `Order posted: ${orderId} at price ${price} for ${direction}`;
         console.log(str);
@@ -190,7 +229,6 @@ export class OrderManager {
      *
      * @param {object} params
      * @returns {Promise<APIResponse<any>>}
-     * @private
      */
     async _getPendingOrders(params)
     {
@@ -200,7 +238,6 @@ export class OrderManager {
     /**
      *
      * @returns {Promise<void>}
-     * @private
      */
     async _fillTradesFromPendingOrders()
     {
@@ -209,6 +246,7 @@ export class OrderManager {
                 symbol,
                 productType: this.productType,
             }).then(data => {
+                // console.log(data);
                 // Тут при инициализации торговли мы запонляем карту откртых ордеров.
             });
         });

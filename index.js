@@ -36,6 +36,43 @@ const wsClient = new WebsocketClientV2(clientOptions);
 import { OrderManager } from "./OrderManager.js";
 const productType = process.env.BITGET_NET.toLowerCase() === 'testnet' ? 'SUSDT-FUTURES' : 'USDT-FUTURES';
 
+// restClient.futuresSubmitOrder({
+//     productType,
+//     marginMode: 'isolated',
+//     symbol: 'SBTCSUSDT',
+//     marginCoin: 'SUSDT',
+//     size: 0.03,
+//     side: 'Buy',
+//     tradeSide: 'Open',
+//     price: '40000',
+//     orderType: 'limit',
+//     force: 'FOK',
+// }).then(data => {
+//     console.log(data);
+// }).catch(err => {
+//     console.log(err);
+// });
+
+// restClient.getFuturesHistoricOrders({
+//     productType
+// }).then(data => {
+//     console.log(data.data.entrustedList);
+// }).catch(err => {
+//     console.log(err);
+// });
+//
+// orderManager._fillTradesFromPendingOrders();
+
+// restClient.getFuturesPositions({
+//     productType,
+//     marginCoin: 'SUSDT',
+// }).then(data => {
+//     console.log(data);
+// }).catch(err => {
+//     console.log(err);
+// });
+
+
 const orderManager = new OrderManager(restClient, wsClient, config, process.env, productType);
 
 wsClient.on('update', (data) => {
@@ -44,5 +81,8 @@ wsClient.on('update', (data) => {
     });
 });
 
-config.tradingPairs.forEach(symbol => wsClient.subscribeTopic(instType, 'ticker', symbol));
+wsClient.on('exception', (data) => {
+    console.log('Exception', data);
+});
 
+config.tradingPairs.forEach(symbol => wsClient.subscribeTopic(instType, 'ticker', symbol));

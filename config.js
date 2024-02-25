@@ -1,7 +1,7 @@
 
 export default {
-    // tradingPairs: ["SBTCSUSDT"],
-    tradingPairs: ["BTCUSDT"],
+    tradingPairs: ["SBTCSUSDT"],
+    // tradingPairs: ["BTCUSDT"],
     tradingAmounts: {
         SBTCSUSDT: 0.03,
         BTCUSDT: 0.03,
@@ -16,7 +16,7 @@ export default {
     },
     step: {  // Step size
         SBTCSUSDT: 20,
-        BTCUSDT: 5,
+        BTCUSDT: 10,
     },
     maxTrades: 5,
     files: {
